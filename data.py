@@ -1,6 +1,8 @@
 import os
 import random
 
+import cv2
+import numpy as np
 import skimage
 import skimage.io
 import skimage.transform
@@ -60,7 +62,7 @@ class data_sampler:
         db = self.dataset
         num_classes = len(db.keys())
         
-        num_poses = random.randint(1, self.batch_size)
+        num_poses = random.randint(1, self.batch_size/2)
         # num_poses = self.batch_size / 2
         num_negs = self.batch_size - num_poses
 
@@ -96,7 +98,10 @@ class data_sampler:
         images_batch = []
         labels_batch = []
         for image_path , clss in samples:
-            img = load_image(image_path)
+            img = load_image(image_path , shift = True)
+            # import matplotlib.pyplot as plt
+            # plt.imshow(img)
+            # plt.show()
             images_batch.append(img)
             labels_batch.append([clss])
         
@@ -104,7 +109,28 @@ class data_sampler:
         self.cur_iteration += 1
         return batch
 
+def rotate_bound(image, angle):
+    # grab the dimensions of the image and then determine the
+    # center
+    (h, w) = image.shape[:2]
+    (cX, cY) = (w // 2, h // 2)
 
+    # grab the rotation matrix (applying the negative of the
+    # angle to rotate clockwise), then grab the sine and cosine
+    # (i.e., the rotation components of the matrix)
+    M = cv2.getRotationMatrix2D((cX, cY), -angle, 1)
+    cos = np.abs(M[0, 0])
+    sin = np.abs(M[0, 1])
+
+    # compute the new bounding dimensions of the image
+    nW = int((h * sin) + (w * cos))
+    nH = int((h * cos) + (w * sin))
+
+    # adjust the rotation matrix to take into account translation
+    M[0, 2] += (nW / 2) - cX
+    M[1, 2] += (nH / 2) - cY
+    # perform the actual rotation and return the image
+    return cv2.warpAffine(image, M, (nW, nH))
 def get_images(root):
     # get all image and their parent dir name
     image_list = []
@@ -127,16 +153,30 @@ def gen_db(root):
         else:
             dataset.update({clss:[image_path]}) 
     return dataset
-def load_image(path):
+def load_image(path, shift = False):
     # load image
     img = skimage.io.imread(path)
+
+    if shift:
+        angle_idx = random.choice([0,1,2,3])
+        img = rotate_bound(img,angle_idx*90)
+
+        # angle =random.uniform(0, 1) * 360
+        # img = rotate_bound(img,angle)
+
     img = img / 255.0
     assert (0 <= img).all() and (img <= 1.0).all()
     # print "Original Image Shape: ", img.shape
     # we crop image from center
     short_edge = min(img.shape[:2])
-    yy = int((img.shape[0] - short_edge) / 2)
-    xx = int((img.shape[1] - short_edge) / 2)
+    if shift:
+        x_off = random.uniform(0.90, 1.1)
+        y_off = random.uniform(0.90, 1.1)
+        yy = max(int((img.shape[0] - short_edge * y_off) / 2),0)
+        xx = max(int((img.shape[1] - short_edge * x_off) / 2),0)
+    else:
+        yy = int((img.shape[0] - short_edge ) / 2)
+        xx = int((img.shape[1] - short_edge ) / 2)
     crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
     # resize to 224, 224
     resized_img = skimage.transform.resize(crop_img, (224, 224))

@@ -8,12 +8,12 @@ def train():
     # configuration
     network_name = 'similarity_net'
     train_root = '/home/share/data/dessert/classification/training'
-    eval_root = '/home/share/data/dessert/classification/validation'
-    pretrained =  None
+    eval_root = '/home/share/data/dessert/classification/training'
+    pretrained =  'models/similarity_net_115.ckpt'
     batch_size = 24
     num_iteration = 200
     learning_rate = 0.00001
-    start_epoch = 0
+    start_epoch = 52
     end_epoch = 1000
 
     images = tf.placeholder("float", [None, 224, 224, 3])
@@ -49,7 +49,7 @@ def train():
             acc_collect.append(accuracy)
         acc = sum(acc_collect)/len(acc_collect)
         print ('epoch : {} , samples : {} , accuracy : {}'.format(epoch , iteration * batch_size,acc))
-        # save_path = saver.save(sess, "models/{}_{}.ckpt".format(network_name , epoch))
+        save_path = saver.save(sess, "models/{}_{}.ckpt".format(network_name , epoch))
         print ("Model saved in file: ", save_path)
     
 
